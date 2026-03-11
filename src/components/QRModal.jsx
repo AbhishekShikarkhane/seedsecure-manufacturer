@@ -36,7 +36,7 @@ const QRModal = ({ isOpen, onClose, parentCarton, childPackets, batchID }) => {
                 Parent Carton
               </h3>
               <div style={{ background: '#f7f8fa', padding: 16, borderRadius: 8, marginBottom: 12, display: 'inline-block' }}>
-                <QRCodeSVG value={`https://seedsecure-farmer-426y8cny5-abhisheks-projects-7717ae06.vercel.app/scan?id=${parentCarton}`} size={180} level="H" includeMargin={true} />
+                <QRCodeSVG value={`https://seedsecure-farmer.vercel.app/scan?id=${parentCarton}`} size={180} level="H" includeMargin={true} />
               </div>
               <code style={{ fontSize: 11, wordBreak: 'break-all', display: 'block', textAlign: 'center', padding: '8px 12px', background: '#f7f8fa', borderRadius: 8, fontFamily: 'ui-monospace, monospace' }}>
                 {parentCarton}
@@ -59,7 +59,7 @@ const QRModal = ({ isOpen, onClose, parentCarton, childPackets, batchID }) => {
                       style={{ marginBottom: 0, cursor: 'pointer', textAlign: 'center', border: isActive ? '2px solid var(--fb-blue)' : undefined }}
                     >
                       <div style={{ background: '#f7f8fa', padding: 8, borderRadius: 8, marginBottom: 6 }}>
-                        <QRCodeSVG value={`https://seedsecure-farmer-426y8cny5-abhisheks-projects-7717ae06.vercel.app/verify?id=${id}`} size={isActive ? 80 : 56} level="M" />
+                        <QRCodeSVG value={`https://seedsecure-farmer.vercel.app/verify?id=${id}`} size={isActive ? 80 : 56} level="M" />
                       </div>
                       <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fb-text-secondary)' }}>#{index + 1}</span>
                     </div>
@@ -86,7 +86,7 @@ const QRModal = ({ isOpen, onClose, parentCarton, childPackets, batchID }) => {
                 <button type="button" onClick={() => setActiveChildId(null)} className="mfg-modal-close"><X size={18} /></button>
               </div>
               <div style={{ background: '#f7f8fa', padding: 20, borderRadius: 8, display: 'flex', justifyContent: 'center' }}>
-                <QRCodeSVG value={`https://seedsecure-farmer-426y8cny5-abhisheks-projects-7717ae06.vercel.app/verify?id=${activeChildId}`} size={200} level="H" includeMargin={true} />
+                <QRCodeSVG value={`https://seedsecure-farmer.vercel.app/verify?id=${activeChildId}`} size={200} level="H" includeMargin={true} />
               </div>
               <p style={{ marginTop: 12, fontSize: 13, color: 'var(--fb-text-secondary)', textAlign: 'center' }}>Scan this code with your device.</p>
             </div>
