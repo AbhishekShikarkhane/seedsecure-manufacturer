@@ -265,7 +265,7 @@ const BatchDetailsModal = ({ batch, onClose, isSyncing }) => {
                 <>
                   {/* Parent QR — original size */}
                   <div style={{ background: '#f7f8fa', padding: 16, borderRadius: 8, marginBottom: 12, display: 'inline-block' }}>
-                    <QRCodeCanvas value={`https://seedsecure-farmer.vercel.app/scan?id=${batch.parentCartonID}`} size={160} level="H" includeMargin={true} />
+                    <QRCodeCanvas value={`${import.meta.env.VITE_LOGISTICS_PORTAL_URL}/scan?id=${batch.parentCartonID}`} size={160} level="H" includeMargin={true} />
                   </div>
                   {/* Compact hash pill */}
                   <div className="w-full max-w-lg mx-auto bg-[#161B22] border border-gray-800 text-gray-400 text-xs font-mono py-2 px-4 rounded-lg truncate text-center shadow-sm">
@@ -332,7 +332,7 @@ const BatchDetailsModal = ({ batch, onClose, isSyncing }) => {
 
                         {/* QR Code */}
                         <div style={{ background: '#f7f8fa', padding: 8, borderRadius: 8, marginBottom: 6 }}>
-                          <QRCodeCanvas value={`https://seedsecure-farmer.vercel.app/verify?id=${childId}`} size={64} level="M" />
+                          <QRCodeCanvas value={`${import.meta.env.VITE_FARMER_PORTAL_URL}/verify?id=${childId}`} size={64} level="M" />
                         </div>
 
                         {/* Hover-only map overlay — only rendered for SOLD, visible only on hover */}
