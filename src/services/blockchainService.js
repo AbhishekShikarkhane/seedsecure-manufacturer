@@ -173,6 +173,30 @@ const CONTRACT_ADDRESS = import.meta.env.VITE_SEED_SECURE_ADDRESS;
 // Debug: print contract address so it can be cross-referenced with the latest deployment
 console.log('Contract Address Active:', CONTRACT_ADDRESS);
 
+/**
+ * Helper to get the SeedSecure contract instance.
+ * Automatically handles BrowserProvider (MetaMask) or fallback JsonRpcProvider.
+ */
+export const getSeedSecureContract = async () => {
+  if (typeof window !== 'undefined' && window.ethereum) {
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+  }
+
+  // Hackathon Ghost Wallet Fallback (for Judges without MetaMask)
+  const rpcUrl = import.meta.env.VITE_ALCHEMY_RPC_URL;
+  const privateKey = import.meta.env.VITE_MANUFACTURER_PRIVATE_KEY;
+  
+  if (rpcUrl && privateKey) {
+    const fallbackProvider = new ethers.JsonRpcProvider(rpcUrl);
+    const fallbackWallet = new ethers.Wallet(privateKey, fallbackProvider);
+    return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, fallbackWallet);
+  }
+
+  throw new Error("No Web3 Provider available.");
+};
+
 const ensureAmoyNetwork = async () => {
   if (!window.ethereum) return;
 
@@ -211,37 +235,27 @@ const ensureAmoyNetwork = async () => {
   }
 };
 
-/**
- * Connects to the SeedSecure contract and creates a new batch.
- * @param {Object} batchData
- * @param {string|number} batchData.batchID - Unique identifier for the batch
- * @param {string} batchData.seedType - Type of seeds (e.g., "Wheat", "Rice")
- * @param {number} batchData.purityScore - Purity score (0-100)
- * @returns {Promise<Object>} - The transaction receipt
- */
 export async function createBatchOnChain(batchData) {
-  if (!window.ethereum) {
-    throw new Error("No crypto wallet found. Please install MetaMask.");
-  }
-
-  if (!CONTRACT_ADDRESS) {
-    throw new Error("Contract address not configured. Set VITE_SEED_SECURE_ADDRESS in .env");
-  }
-
   try {
-    // 1. Force network synchronization first
-    await ensureAmoyNetwork();
+    // 1. Force network synchronization at the absolute top
+    if (window.ethereum) {
+      await ensureAmoyNetwork();
+    }
 
-    // Request account access
-    await window.ethereum.request({ method: 'eth_requestAccounts' });
+    if (!CONTRACT_ADDRESS) {
+      throw new Error("Contract address not configured. Set VITE_SEED_SECURE_ADDRESS in .env");
+    }
 
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const signer = await provider.getSigner();
+    // 2. Safeguard: Request account access
+    if (window.ethereum) {
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+    }
 
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+    // 3. Connect to the contract
+    const contract = await getSeedSecureContract();
 
-    // 2. Check Contract Code: Ensure address is a contract and not an EOA or empty
-    const code = await provider.getCode(CONTRACT_ADDRESS);
+    // 4. Check Contract Code: Ensure address is a contract and not an EOA or empty
+    const code = await contract.runner.provider.getCode(CONTRACT_ADDRESS);
     if (code === "0x") {
       const msg = `Contract not found at ${CONTRACT_ADDRESS}. Check if the address is correct for the Amoy Testnet.`;
       console.error(msg);
@@ -258,7 +272,7 @@ export async function createBatchOnChain(batchData) {
       throw new Error("Failed to communicate with contract. The ABI might not match the deployed contract or you are on the wrong network.");
     }
     
-    const currentAccount = await signer.getAddress();
+    const currentAccount = await contract.runner.getAddress();
     
     if (currentAccount.toLowerCase() !== manufacturer.toLowerCase()) {
       const errorMsg = `Authorization Failed: Switch to the authorized Manufacturer wallet (${manufacturer}) in MetaMask. Current: ${currentAccount}`;
@@ -287,7 +301,6 @@ export async function createBatchOnChain(batchData) {
     console.error("Blockchain Error Diagnostics:");
     console.error("- Message:", error.message);
     console.error("- Contract:", CONTRACT_ADDRESS);
-    console.error("- Chain ID Check: Expected 80002");
     throw error;
   }
 }
