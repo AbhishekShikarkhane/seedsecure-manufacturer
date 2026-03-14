@@ -151,32 +151,37 @@ const StatCard = ({ label, value, sub, color, icon: Icon, glow, spark = [] }) =>
 );
 
 const StatCardsRow = ({ batches }) => {
-    const totalPackets = batches.reduce((a, b) => a + (b.childPacketIDs?.length || 0) * 10, 0);
-    const avgPurity = batches.length > 0
-        ? (batches.reduce((a, b) => a + (b.purityScore || 0), 0) / batches.length).toFixed(1)
-        : '97.9';
-    
-    // Real-time Counterfeit / Blocked Scans Calculation (Dynamic)
-    const counterfeitCount = batches.filter(batch => {
+    // 1. Total Supply Volume (Assuming 10 child packets per batch)
+    const totalSupplyVolume = batches.length > 0 
+        ? batches.length * 10 
+        : 0;
+
+    // 2. Average Purity Score
+    const batchesWithPurity = batches.filter(b => b.purityScore != null);
+    const avgPurityScore = batchesWithPurity.length > 0
+        ? (batchesWithPurity.reduce((acc, curr) => acc + Number(curr.purityScore), 0) / batchesWithPurity.length).toFixed(1)
+        : 0;
+
+    // 3. Counterfeit Scans (Real-time calculation)
+    const counterfeitScans = batches.filter(batch => {
         const purityValue = Number(batch.purityScore || batch.purity || 0);
-        return batch.status === 'Rejected' || (purityValue > 0 && purityValue < 85);
+        return batch.status === 'Rejected' || (purityValue > 0 && purityValue < 90);
     }).length;
 
-    const capitalProtected = batches.length > 0
-        ? `₹${(batches.length * 2500).toLocaleString()}`
-        : '₹42,500';
+    // 4. Capital Protected (Example: Assuming 250 INR per packet secured)
+    const capitalProtected = totalSupplyVolume * 250;
 
     const mkSeries = (n, base, spread) => Array.from({ length: n }, (_, i) => ({ t: i, v: Math.max(0, base + (Math.sin(i / 2) * spread) + (Math.random() - 0.5) * spread) }));
-    const spark1 = mkSeries(24, Math.max(5, (totalPackets || 1000) / 200), 3);
-    const spark2 = mkSeries(24, parseFloat(avgPurity) || 97, 1.2);
-    const spark3 = mkSeries(24, Math.max(2, counterfeitCount * 1.5), 4);
+    const spark1 = mkSeries(24, Math.max(5, totalSupplyVolume / 200), 3);
+    const spark2 = mkSeries(24, parseFloat(avgPurityScore) || 97, 1.2);
+    const spark3 = mkSeries(24, Math.max(2, counterfeitScans * 1.5), 4);
 
     return (
         <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-            <StatCard label="Total Supply Volume" value={totalPackets > 0 ? `${totalPackets.toLocaleString()}` : '0'} sub="Seed packets tracked on-chain" color="#38BDF8" icon={Package2} spark={spark1} />
-            <StatCard label="Avg Purity Score" value={batches.length > 0 ? `${avgPurity}%` : '—'} sub="Gemini Vision · All batches" color="#34D399" icon={Award} spark={spark2} />
-            <StatCard label="Counterfeit Scans" value={counterfeitCount} sub="Blocked by forensics engine" color="#FFB800" icon={ShieldAlert} glow spark={spark3} />
-            <StatCard label="Capital Protected" value={batches.length > 0 ? capitalProtected : '₹0'} sub="Estimated farmer loss prevented" color="#38BDF8" icon={TrendingUp} spark={spark1} />
+            <StatCard label="Total Supply Volume" value={totalSupplyVolume > 0 ? `${totalSupplyVolume.toLocaleString()}` : '0'} sub="Seed packets tracked on-chain" color="#38BDF8" icon={Package2} spark={spark1} />
+            <StatCard label="Avg Purity Score" value={avgPurityScore > 0 ? `${avgPurityScore}%` : '—'} sub="Gemini Vision · All batches" color="#34D399" icon={Award} spark={spark2} />
+            <StatCard label="Counterfeit Scans" value={counterfeitScans} sub="Blocked by forensics engine" color="#FFB800" icon={ShieldAlert} glow spark={spark3} />
+            <StatCard label="Capital Protected" value={capitalProtected > 0 ? `₹${capitalProtected.toLocaleString()}` : '₹0'} sub="Estimated farmer loss prevented" color="#38BDF8" icon={TrendingUp} spark={spark1} />
         </div>
     );
 };
@@ -357,35 +362,24 @@ const ThreatMapCard = ({ batches }) => {
                     }} />
 
                     {/* ── Threat pins & Live GPS unified ── */}
-                    {(pins.length > 0 ? pins.map(p => ({
-                        label: p.location || `Batch ${p.batchID}`,
-                        lat: p.latitude,
-                        lng: p.longitude,
-                        risk: 'LIVE'
-                    })) : [
-                        { label: 'Prayagraj', lat: 25.45, lng: 81.85, risk: 'CRITICAL' },
-                        { label: 'Pune', lat: 18.52, lng: 73.86, risk: 'HIGH' },
-                        { label: 'Jaipur', lat: 26.91, lng: 75.79, risk: 'CRITICAL' },
-                        { label: 'Bhopal', lat: 23.26, lng: 77.40, risk: 'MEDIUM' },
-                    ]).map((dot, i) => {
-                        const p = toPct(dot.lat, dot.lng);
+                    {pins.length > 0 ? pins.map((dot, i) => {
                         return (
-                            <div key={dot.label + i}
+                            <div key={dot.location + i}
                                 style={{ position: 'absolute', left: `${p.x}%`, top: `${p.y}%`, transform: 'translate(-50%,-50%)', cursor: 'pointer', zIndex: 10 }}
-                                onMouseEnter={() => setHot(dot.label + i)}
+                                onMouseEnter={() => setHot(dot.location + i)}
                                 onMouseLeave={() => setHot(null)}
                             >
                                 <div style={{ position: 'absolute', inset: -14, borderRadius: '50%', border: '1.5px solid #38BDF8', opacity: 0.5, animation: 'ss-db-ping 2s ease-out infinite' }} />
                                 <div style={{ position: 'absolute', inset: -22, borderRadius: '50%', border: '1px solid #38BDF8', opacity: 0.18, animation: 'ss-db-ping 2s ease-out 0.7s infinite' }} />
                                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#38BDF8', boxShadow: '0 0 14px #38BDF8, 0 0 4px #fff', border: '2px solid rgba(255,255,255,0.7)' }} />
-                                {hot === (dot.label + i) && (
+                                {hot === (dot.location + i) && (
                                     <div style={{ position: 'absolute', bottom: 18, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.92)', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 6, padding: '3px 9px', whiteSpace: 'nowrap', fontSize: 9, color: '#38BDF8', fontWeight: 700, zIndex: 20, boxShadow: '0 0 10px rgba(56,189,248,0.25)' }}>
-                                        {dot.label} · {dot.risk}
+                                        {dot.location} · LIVE
                                     </div>
                                 )}
                             </div>
                         );
-                    })}
+                    }) : null}
 
                     {/* Corner labels */}
                     <div style={{ position: 'absolute', top: 6, left: 8, fontSize: 8, color: 'rgba(255,255,255,0.35)', fontFamily: 'monospace', pointerEvents: 'none', zIndex: 11 }}>67°E / 37°N</div>
@@ -493,10 +487,10 @@ const PieCard = ({ batches }) => {
         { name: 'Sold', value: 3, fill: '#38BDF8' },
     ];
 
-    const totalBatches = batches.length || displayData.reduce((a, d) => a + d.value, 0);
+    const totalBatches = batches.length;
     const avgPurity = batches.length > 0
         ? (batches.reduce((a, b) => a + (b.purityScore || 0), 0) / batches.length).toFixed(1)
-        : '97.1';
+        : 0;
 
     return (
         <CardShell glow>
@@ -548,29 +542,16 @@ const PieCard = ({ batches }) => {
 
 /* ════════════════════ CARD 3 — PURITY LINE CHART ════════════════════ */
 const PurityChartCard = ({ batches }) => {
-    /* Sort batches by createdAt, take last 20, map to chart points */
-    const chartData = [...batches]
+    const purityTrendData = [...batches]
         .filter(b => b.purityScore != null)
-        .sort((a, b) => {
-            const ta = a.createdAt?.seconds || 0;
-            const tb = b.createdAt?.seconds || 0;
-            return ta - tb;
-        })
-        .slice(-20)
-        .map((b, i) => ({
-            batch: b.batchID ? `#${String(b.batchID).slice(-4)}` : `B${i + 1}`,
-            purity: Number((b.purityScore * (b.purityScore > 1 ? 1 : 100)).toFixed(1)),
-            seed: b.seedType || 'Unknown',
+        .slice(-10)
+        .map(b => ({
+            name: b.batchID ? b.batchID.toString().slice(-4) : 'N/A',
+            purity: Number(b.purityScore),
+            seed: b.seedType || 'Unknown'
         }));
-
-    /* Fallback hardcoded trend */
-    const fallback = [
-        { batch: 'B-1', purity: 89.5 }, { batch: 'B-2', purity: 92.3 },
-        { batch: 'B-3', purity: 88.1 }, { batch: 'B-4', purity: 95.7 },
-        { batch: 'B-5', purity: 97.2 }, { batch: 'B-6', purity: 96.4 },
-        { batch: 'B-7', purity: 98.1 }, { batch: 'B-8', purity: 97.8 },
-    ];
-    const displayData = chartData.length >= 2 ? chartData : fallback;
+    
+    const displayData = purityTrendData.length > 0 ? purityTrendData : [{ name: '-', purity: 0 }];
 
     return (
         <CardShell glow style={{ gridColumn: '1 / 3' }}>
@@ -609,7 +590,7 @@ const PurityChartCard = ({ batches }) => {
                             </filter>
                         </defs>
                         {/* <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" /> */}
-                        <XAxis dataKey="batch" tick={{ fill: '#6B7280', fontSize: 10 }} axisLine={{ stroke: '#1F2937' }} tickLine={false} />
+                        <XAxis dataKey="name" tick={{ fill: '#6B7280', fontSize: 10 }} axisLine={{ stroke: '#1F2937' }} tickLine={false} />
                         <YAxis domain={[80, 100]} tick={{ fill: '#6B7280', fontSize: 10 }} axisLine={{ stroke: '#1F2937' }} tickLine={false} tickFormatter={v => `${v}%`} />
                         <Tooltip content={<DarkTip />} />
                         <ReferenceLine y={96} stroke="rgba(251,191,36,0.55)" strokeDasharray="4 4"
@@ -674,7 +655,7 @@ const QACard = ({ batches, connected }) => {
                 {/* Uptime */}
                 <div style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.14)', borderRadius: 12, padding: '12px 14px' }}>
                     <div style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 3 }}>Smart Contract Uptime</div>
-                    <div style={{ fontSize: 34, fontWeight: 900, color: '#34D399', letterSpacing: '-0.02em', lineHeight: 1 }}>99.99<span style={{ fontSize: 16 }}>%</span></div>
+                    <div style={{ fontSize: 34, fontWeight: 900, color: '#34D399', letterSpacing: '-0.02em', lineHeight: 1 }}>{connected ? '99.99' : '0.00'}<span style={{ fontSize: 16 }}>%</span></div>
                     <div style={{ fontSize: 10, color: '#6b7280', marginTop: 3 }}>SeedBatch.sol · Polygon Amoy Testnet</div>
                 </div>
 
@@ -684,8 +665,8 @@ const QACard = ({ batches, connected }) => {
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#e2e8f0' }}>Firebase RPC Status</div>
                         <div style={{ fontSize: 10, color: '#6b7280', marginTop: 1 }}>Firestore · Real-time listener</div>
                     </div>
-                    <div style={{ padding: '3px 10px', borderRadius: 20, background: connected ? 'rgba(52,211,153,0.15)' : 'rgba(251,191,36,0.15)', border: `1px solid ${connected ? 'rgba(52,211,153,0.35)' : 'rgba(251,191,36,0.35)'}`, fontSize: 10, fontWeight: 800, color: connected ? '#34D399' : '#fbbf24' }}>
-                        {connected ? 'CONNECTED' : 'SYNCING…'}
+                    <div style={{ padding: '3px 10px', borderRadius: 20, background: connected ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)', border: `1px solid ${connected ? 'rgba(52,211,153,0.35)' : 'rgba(239,68,68,0.35)'}`, fontSize: 10, fontWeight: 800, color: connected ? '#34D399' : '#EF4444' }}>
+                        {connected ? 'CONNECTED' : 'DISCONNECTED'}
                     </div>
                 </div>
 
@@ -695,19 +676,19 @@ const QACard = ({ batches, connected }) => {
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#e2e8f0' }}>Live Smoke Testing</div>
                         <div style={{ fontSize: 10, color: '#6b7280', marginTop: 1 }}>E2E: mint → transit → verify</div>
                     </div>
-                    <div style={{ padding: '3px 10px', borderRadius: 20, background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.35)', fontSize: 10, fontWeight: 800, color: '#34D399' }}>PASSED</div>
+                    <div style={{ padding: '3px 10px', borderRadius: 20, background: connected ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)', border: `1px solid ${connected ? 'rgba(52,211,153,0.35)' : 'rgba(239,68,68,0.35)'}`, fontSize: 10, fontWeight: 800, color: connected ? '#34D399' : '#EF4444' }}>{connected ? 'PASSED' : 'STANDBY'}</div>
                 </div>
 
                 {/* Test case bar */}
                 <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#e2e8f0' }}>Automated Test Cases</div>
-                        <div style={{ fontSize: 11, fontWeight: 800, color: '#34D399' }}>142 / 142</div>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: '#34D399' }}>{connected ? '142 / 142' : '0 / 142'}</div>
                     </div>
                     <div style={{ height: 6, borderRadius: 6, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: '100%', borderRadius: 6, background: 'linear-gradient(90deg,#34D399,#38BDF8)', boxShadow: '0 0 10px rgba(52,211,153,0.5)' }} />
+                        <div style={{ height: '100%', width: connected ? '100%' : '0%', borderRadius: 6, background: 'linear-gradient(90deg,#34D399,#38BDF8)', boxShadow: connected ? '0 0 10px rgba(52,211,153,0.5)' : 'none', transition: 'width 1s ease-in-out' }} />
                     </div>
-                    <div style={{ fontSize: 10, color: '#6b7280', marginTop: 5 }}>100% pass rate · 0 failures · 0 skipped</div>
+                    <div style={{ fontSize: 10, color: '#6b7280', marginTop: 5 }}>{connected ? '100% pass rate · 0 failures' : 'System handshake in progress'}</div>
                 </div>
 
                 {/* Extra metrics */}
@@ -789,21 +770,31 @@ const AnalyticsCommandCenter = ({ rawBatches = [] }) => {
     const uniqueSeedTypes = ['ALL', ...new Set(rawBatches.map(b => b.seedType || 'Unknown').filter(Boolean))];
     const uniqueStatuses = ['ALL', 'Ready for Dispatch', 'In Transit', 'At Retailer', 'Fully Sold'];
 
-    // GroupING for BarChart (Volume by Seed Type)
-    const seedTypeCounts = filteredBatches.reduce((acc, batch) => {
-        const type = batch.seedType || 'Unknown';
-        acc[type] = (acc[type] || 0) + 1;
+    // --- BAR CHART: Volume by Seed Type ---
+    const volumeBySeedData = filteredBatches.reduce((acc, batch) => {
+        const seed = batch.seedType || 'Unknown';
+        const existing = acc.find(item => item.name === seed);
+        if (existing) {
+            existing.volume += 10;
+        } else {
+            acc.push({ name: seed, volume: 10 });
+        }
         return acc;
-    }, {});
-    const barData = Object.keys(seedTypeCounts).map(key => ({ name: key, count: seedTypeCounts[key] }));
+    }, []);
+    const finalBarData = volumeBySeedData.length > 0 ? volumeBySeedData : [{ name: 'Awaiting Data', volume: 0 }];
 
-    // Grouping for DonutChart (Supply Chain Status)
-    const statusCounts = filteredBatches.reduce((acc, b) => {
-        const type = b.status || 'Unknown';
-        acc[type] = (acc[type] || 0) + 1;
+    // --- PIE CHART: Batch Status Distribution ---
+    const statusDistributionData = filteredBatches.reduce((acc, batch) => {
+        const stat = batch.status || 'Pending';
+        const existing = acc.find(item => item.name === stat);
+        if (existing) {
+            existing.value += 1;
+        } else {
+            acc.push({ name: stat, value: 1 });
+        }
         return acc;
-    }, {});
-    const pieData = Object.entries(statusCounts).map(([name, value]) => ({ name, value }));
+    }, []);
+    const finalPieData = statusDistributionData.length > 0 ? statusDistributionData : [{ name: 'No Batches', value: 1 }];
     const PIE_COLORS = ['#38BDF8', '#818CF8', '#34D399', '#A78BFA', '#F472B6', '#FBBF24', '#2DD4BF'];
 
     const exportCSV = () => {
@@ -1014,7 +1005,7 @@ const AnalyticsCommandCenter = ({ rawBatches = [] }) => {
                     <ResponsiveContainer width="100%" height={240}>
                         <PieChart>
                             <Pie
-                                data={pieData}
+                                data={finalPieData}
                                 cx="50%" cy="50%"
                                 innerRadius={60} outerRadius={85}
                                 paddingAngle={5}
@@ -1022,7 +1013,7 @@ const AnalyticsCommandCenter = ({ rawBatches = [] }) => {
                                 animationDuration={500}
                                 stroke="none"
                             >
-                                {pieData.map((entry, index) => (
+                                {finalPieData.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                                 ))}
                             </Pie>
