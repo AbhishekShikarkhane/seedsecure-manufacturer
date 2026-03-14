@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { Upload, Package, Truck, Store, History, ShieldCheck, X, Sparkles, LayoutDashboard } from 'lucide-react';
+import { Upload, Package, Truck, Store, History, ShieldCheck, X, Sparkles, LayoutDashboard, Users } from 'lucide-react';
 
 /* ─── NAV ITEMS ─────────────────────────────────────────────────────────── */
 const navItems = [
   { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
+  { id: 'network', label: 'Logistics Network', icon: Users },
   { id: 'analysis', label: 'Analysis', icon: Upload },
   { id: 'logistics', label: 'Logistics & Dispatch', icon: Package },
   { id: 'transit', label: 'In Transit', icon: Truck },
@@ -96,10 +97,10 @@ const AboutModal = ({ onClose }) => {
           width: 64px; height: 64px;
           display: flex; align-items: center; justify-content: center;
           border-radius: 16px;
-          background: linear-gradient(135deg, #00FF9D, #10B981);
+          background: linear-gradient(135deg, #00f0ff, #0066ff);
           box-shadow:
-            0 0 0 8px rgba(0,255,157,0.08),
-            0 0 30px rgba(0,255,157,0.45);
+            0 0 0 8px rgba(0,240,255,0.08),
+            0 0 30px rgba(0,240,255,0.45);
           margin: 0 auto 16px auto;
         }
         .ss-modal-title {
@@ -244,158 +245,179 @@ const Sidebar = ({ activeTab, setActiveTab, expanded, setExpanded }) => {
           display: flex;
           flex-direction: column;
           flex-shrink: 0;
-          background: rgba(26, 32, 53, 0.85);
-          border-right: 1px solid rgba(255,255,255,0.05);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
+          background: rgba(13, 13, 23, 0.95);
+          border-right: 1px solid rgba(255,255,255,0.08);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
           z-index: 1000;
           overflow: hidden;
-          transition: width 280ms cubic-bezier(0.4,0,0.2,1);
+          transition: width 320ms cubic-bezier(0.4, 0, 0.2, 1);
           user-select: none;
+          box-shadow: 10px 0 30px rgba(0,0,0,0.5);
         }
 
         .ss-logo-row {
           display: flex;
           align-items: center;
           height: 80px;
-          padding: 0 12px;
+          padding: 0 16px;
           flex-shrink: 0;
           cursor: pointer;
         }
         .ss-logo-box {
-          min-width: 48px;
-          width: 48px;
-          height: 48px;
+          min-width: 44px;
+          width: 44px;
+          height: 44px;
           display: flex;
           align-items: center;
           justify-content: center;
           border-radius: 12px;
-          background: linear-gradient(135deg, #00FF9D, #10B981);
-          box-shadow: 0 0 22px rgba(0,255,157,0.45);
+          background: linear-gradient(135deg, #00f0ff, #0066ff);
+          box-shadow: 0 0 20px rgba(0,240,255,0.3);
           flex-shrink: 0;
-          transition: transform 200ms ease, box-shadow 200ms ease;
+          transition: all 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
         }
         .ss-logo-row:hover .ss-logo-box {
-          transform: scale(1.07);
-          box-shadow: 0 0 28px rgba(0,255,157,0.6);
+          transform: scale(1.1) rotate(5deg);
+          box-shadow: 0 0 30px rgba(0,240,255,0.5);
         }
 
         .ss-label {
           white-space: nowrap;
           overflow: hidden;
-          transition: opacity 200ms ease;
+          transition: all 300ms ease;
           pointer-events: none;
         }
 
         .ss-brand-text {
-          margin-left: 16px;
-          font-size: 17px;
-          font-weight: 700;
-          letter-spacing: 0.02em;
-          color: #ffffff;
+          margin-left: 14px;
+          font-size: 18px;
+          font-weight: 800;
+          letter-spacing: -0.01em;
+          background: linear-gradient(90deg, #ffffff, #94a3b8);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
         }
         .ss-divider {
           height: 1px;
-          margin: 0 12px;
-          background: rgba(255,255,255,0.05);
+          margin: 0 16px;
+          background: linear-gradient(90deg, rgba(255,255,255,0.1), transparent);
           flex-shrink: 0;
         }
         .ss-nav {
           display: flex;
           flex-direction: column;
-          margin-top: 12px;
+          margin-top: 20px;
+          padding: 0 8px;
           flex: 1;
           min-height: 0;
         }
         .ss-nav-btn {
+          position: relative;
           display: flex;
           align-items: center;
-          height: 48px;
-          margin: 0 12px 4px 12px;
+          height: 50px;
+          margin-bottom: 4px;
+          padding: 0 12px;
           border-radius: 12px;
           border: none;
           background: transparent;
           cursor: pointer;
-          transition: background 200ms ease, color 200ms ease, box-shadow 200ms ease;
+          transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
           outline: none;
-          color: rgba(255,255,255,0.5);
+          color: #94a3b8;
+          overflow: hidden;
         }
         .ss-nav-btn:hover {
-          background: rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.05);
           color: #ffffff;
+          transform: translateX(4px);
         }
         .ss-nav-btn.active {
-          background: rgba(0, 255, 157, 0.08);
-          color: #ffffff;
-          box-shadow: 0 0 18px rgba(0, 255, 157, 0.25), inset 0 0 0 1px rgba(0, 255, 157, 0.35);
+          background: linear-gradient(90deg, rgba(0, 240, 255, 0.12), transparent);
+          color: #00f0ff;
+        }
+        .ss-nav-btn::before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 15%;
+          height: 70%;
+          width: 3px;
+          background: #00f0ff;
+          border-radius: 0 4px 4px 0;
+          transform: scaleY(0);
+          transition: transform 250ms ease;
+          box-shadow: 0 0 10px #00f0ff;
+        }
+        .ss-nav-btn.active::before {
+          transform: scaleY(1);
         }
         .ss-icon-wrap {
-          min-width: 48px;
-          width: 48px;
+          min-width: 40px;
+          width: 40px;
           display: flex;
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
+          transition: transform 250ms ease;
+        }
+        .ss-nav-btn:hover .ss-icon-wrap {
+          transform: scale(1.1);
         }
         .ss-icon-wrap svg {
-          color: rgba(255,255,255,0.5);
-          transition: color 200ms ease, filter 200ms ease;
-        }
-        .ss-nav-btn:hover .ss-icon-wrap svg {
-          color: #ffffff;
-          filter: drop-shadow(0 0 8px rgba(0, 255, 157, 0.6));
+          color: inherit;
+          transition: all 250ms ease;
         }
         .ss-nav-btn.active .ss-icon-wrap svg {
-          color: #ffffff;
-          filter: drop-shadow(0 0 10px rgba(0,255,157,0.9));
+          filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.5));
         }
         .ss-nav-label {
-          margin-left: 4px;
-          font-size: 13px;
+          margin-left: 8px;
+          font-size: 14px;
           font-weight: 600;
+          letter-spacing: 0.01em;
         }
         .ss-active-dot {
           width: 6px; height: 6px;
           border-radius: 50%;
-          background: #38BDF8;
-          box-shadow: 0 0 8px rgba(56,189,248,0.8);
+          background: #00f0ff;
+          box-shadow: 0 0 10px #00f0ff;
           flex-shrink: 0;
           margin-left: auto;
-          margin-right: 8px;
-          opacity: 1;
-          transition: opacity 200ms ease;
+          margin-right: 4px;
         }
-        .ss-sidebar:hover .ss-active-dot { opacity: 0; }
         .ss-footer {
           display: flex;
           align-items: center;
-          height: 56px;
-          padding: 0 12px;
+          height: 64px;
+          padding: 0 16px;
           flex-shrink: 0;
           margin-top: auto;
+          background: rgba(255,255,255,0.02);
           border-top: 1px solid rgba(255,255,255,0.05);
         }
         .ss-version-pill {
-          min-width: 48px;
-          width: 48px;
-          height: 30px;
+          min-width: 44px;
+          width: 44px;
+          height: 28px;
           display: flex;
           align-items: center;
           justify-content: center;
           border-radius: 8px;
-          background: rgba(255,255,255,0.05);
-          font-size: 10px;
-          font-weight: 700;
-          letter-spacing: 0.08em;
-          color: #8B949E;
+          background: rgba(0, 240, 255, 0.1);
+          border: 1px solid rgba(0, 240, 255, 0.2);
+          font-size: 11px;
+          font-weight: 800;
+          color: #00f0ff;
           flex-shrink: 0;
         }
         .ss-footer-text {
-          font-size: 11px;
-          font-weight: 500;
-          color: #8B949E;
-          letter-spacing: 0.06em;
-          margin-left: 14px;
+          font-size: 12px;
+          font-weight: 600;
+          color: #64748b;
+          letter-spacing: 0.02em;
+          margin-left: 12px;
         }
       `}</style>
 

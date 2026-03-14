@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ReactDOM from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { X, Printer, Package, Layers } from 'lucide-react';
 
@@ -12,9 +13,52 @@ const QRModal = ({ isOpen, onClose, parentCarton, childPackets, batchID }) => {
     window.print();
   };
 
-  return (
-    <div className="mfg-modal-overlay">
-      <div className="mfg-modal-dialog" style={{ maxWidth: 640 }}>
+  return ReactDOM.createPortal(
+    <>
+      <style type="text/css" media="print">
+        {`
+          @page { size: A4 portrait; margin: 8mm; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white !important; }
+          body > *:not(#qr-print-container) { display: none !important; }
+          
+          /* Aggressively force white backgrounds and dark text */
+          #qr-print-container, 
+          #qr-print-container .mfg-modal-overlay,
+          #qr-print-container .mfg-modal-dialog,
+          #qr-print-container .mfg-modal-header,
+          #qr-print-container .mfg-modal-body,
+          #qr-print-container .mfg-card {
+            background-color: white !important;
+          }
+          #qr-print-container * {
+            color: black !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+          }
+          #qr-print-container .mfg-card {
+            border: 1px solid #ccc !important;
+            padding: 8px !important;
+            page-break-inside: avoid !important;
+          }
+          
+          /* Force a tight 5-column grid for child packets to fit them all on page 1 */
+          .print-grid {
+            display: grid !important;
+            grid-template-columns: repeat(5, 1fr) !important;
+            gap: 12px !important;
+            width: 100% !important;
+            margin-top: 10px !important;
+          }
+          
+          /* Scale down parent carton to save vertical space */
+          .print-parent {
+            padding-bottom: 0 !important;
+            border-bottom: 1px solid #ddd !important;
+          }
+        `}
+      </style>
+    <div id="qr-print-container" className="mfg-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/60 print:static print:block print:bg-transparent print:m-0 print:p-0">
+      <div className="mfg-modal-dialog bg-white rounded-xl w-full max-w-md print:bg-white print:text-black print:max-w-none print:w-full print:shadow-none print:border-none print:m-0 print:p-0" style={{ maxWidth: 640 }}>
         <div className="mfg-modal-header" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
           <div>
             <h2 className="mfg-modal-title">
@@ -30,7 +74,7 @@ const QRModal = ({ isOpen, onClose, parentCarton, childPackets, batchID }) => {
 
         <div className="mfg-modal-body" style={{ padding: 20 }}>
           <div className="mfg-modal-grid">
-            <div className="mfg-card" style={{ marginBottom: 0 }}>
+            <div className="mfg-card print-parent" style={{ marginBottom: 0 }}>
               <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--fb-text-secondary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Layers size={18} style={{ color: 'var(--fb-blue)' }} />
                 Parent Carton
@@ -48,18 +92,23 @@ const QRModal = ({ isOpen, onClose, parentCarton, childPackets, batchID }) => {
                 <Package size={18} style={{ color: 'var(--fb-blue)' }} />
                 Child Packets ({safeChildPackets.length})
               </h3>
-              <div className="mfg-qr-children">
+              <div className="mfg-qr-children grid grid-cols-2 sm:grid-cols-3 print-grid mt-4">
                 {safeChildPackets.map((id, index) => {
                   const isActive = activeChildId === id;
                   return (
                     <div
                       key={id}
                       onClick={() => setActiveChildId(isActive ? null : id)}
-                      className="mfg-card"
+                      className="mfg-card print:break-inside-avoid flex flex-col print:flex-col print:items-center print:border print:border-gray-300 print:p-4 print:w-full"
                       style={{ marginBottom: 0, cursor: 'pointer', textAlign: 'center', border: isActive ? '2px solid var(--fb-blue)' : undefined }}
                     >
-                      <div style={{ background: '#f7f8fa', padding: 8, borderRadius: 8, marginBottom: 6 }}>
-                        <QRCodeSVG value={`${import.meta.env.VITE_FARMER_PORTAL_URL}/verify?id=${id}`} size={isActive ? 80 : 56} level="M" />
+                      <div style={{ background: '#f7f8fa', padding: 8, borderRadius: 8, marginBottom: 6, width: '100%', display: 'flex', justifyContent: 'center' }}>
+                        <QRCodeSVG 
+                          value={`${import.meta.env.VITE_FARMER_PORTAL_URL}/verify?id=${id}`} 
+                          size={isActive ? 80 : 56} 
+                          level="M" 
+                          style={{ height: "auto", maxWidth: "100%", width: "100%" }} 
+                        />
                       </div>
                       <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fb-text-secondary)' }}>#{index + 1}</span>
                     </div>
@@ -95,14 +144,13 @@ const QRModal = ({ isOpen, onClose, parentCarton, childPackets, batchID }) => {
 
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
-            body * { visibility: hidden; }
-            .mfg-modal-dialog, .mfg-modal-dialog * { visibility: visible; }
-            .mfg-modal-overlay { position: static !important; background: white !important; }
             button { display: none !important; }
           }
         `}} />
       </div>
     </div>
+    </>,
+    document.body
   );
 };
 

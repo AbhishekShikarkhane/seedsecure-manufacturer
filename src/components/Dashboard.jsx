@@ -3,10 +3,14 @@ import {
     AreaChart, Area, LineChart, Line,
     PieChart, Pie, Cell, Tooltip, Legend,
     XAxis, YAxis, CartesianGrid, ResponsiveContainer, ReferenceLine,
+    BarChart, Bar
 } from 'recharts';
 import { collection, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Globe2, TrendingUp, Brain, Activity, ShieldAlert, Cpu, Zap, Package2, Award, FileDown } from 'lucide-react';
+import { Globe2, TrendingUp, Brain, Activity, ShieldAlert, Cpu, Zap, Package2, Award, FileDown, Filter, Download, Sparkles } from 'lucide-react';
+import { generateSupplyChainInsight } from '../geminiService';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 /* ── Terminal log pool (forensics flavour) ──────────────────────────── */
 const LOG_POOL = [
@@ -34,6 +38,27 @@ const LOG_POOL = [
     '[WARN]  Scan originated outside registered geofence zone',
 ];
 
+const TerminalLine = ({ line, color }) => (
+    <div 
+        className="transition-all duration-300 ease-out hover:pl-1"
+        style={{ 
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace", 
+            fontSize: 9, 
+            lineHeight: 1.8, 
+            color, 
+            wordBreak: 'break-all', 
+            fontWeight: color === '#FFB800' ? 800 : 600,
+            textShadow: color !== '#38BDF8' ? `0 0 8px ${color}40` : 'none',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 6
+        }}
+    >
+        <span style={{ color: 'rgba(56,189,248,0.25)', flexShrink: 0 }}>{'›'}</span>
+        <span>{line}</span>
+    </div>
+);
+
 /* Status → display config */
 const STATUS_CONFIG = {
     'Manufactured': { color: '#818CF8', label: 'Manufactured' },
@@ -46,9 +71,10 @@ const STATUS_CONFIG = {
 };
 
 /* ── Shared card shell ─────────────────────────────────────────────── */
-const CardShell = ({ children, glow, className = '', style = {} }) => (
+const CardShell = ({ children, glow, className = '', style = {}, innerRef }) => (
     <div
-        className={className}
+        ref={innerRef}
+        className={`group transition-all duration-500 ease-out hover:-translate-y-2 hover:shadow-[0_20px_50px_rgba(56,189,248,0.15)] hover:border-sky-500/40 ${className}`}
         style={{
             background: '#0B0E14',
             border: '1px solid rgba(255,255,255,0.05)',
@@ -63,6 +89,10 @@ const CardShell = ({ children, glow, className = '', style = {} }) => (
             ...style,
         }}
     >
+        {/* Neon corner glow on hover */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/10 blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+        
         {glow && (
             <div style={{
                 position: 'absolute', top: 0, left: '10%', right: '10%', height: 1,
@@ -91,7 +121,12 @@ const Hdr = ({ icon: Icon, title, sub, accent = '#38BDF8', right }) => (
 /* ── Executive Stat Cards (defined after CardShell) ───────────────── */
 const StatCard = ({ label, value, sub, color, icon: Icon, glow, spark = [] }) => (
     <CardShell glow={glow} style={{ padding: '20px 20px', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', right: 8, top: 8, width: 130, height: 38, opacity: 0.6, minHeight: 0 }}>
+        {/* Animated Background Pulse on Hover */}
+        <div 
+            className="absolute inset-0 bg-gradient-to-br from-sky-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+        />
+        
+        <div style={{ position: 'absolute', right: 8, top: 8, width: 130, height: 38, opacity: 0.6, minHeight: 0 }} className="transition-transform duration-500 group-hover:scale-110">
             <AreaChart width={130} height={38} data={spark}>
                 <defs>
                     <linearGradient id={`spark-${label.replace(/\s+/g, '-')}`} x1="0" y1="0" x2="0" y2="1">
@@ -102,14 +137,14 @@ const StatCard = ({ label, value, sub, color, icon: Icon, glow, spark = [] }) =>
                 <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} fill={`url(#spark-${label.replace(/\s+/g, '-')})`} />
             </AreaChart>
         </div>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-            <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 10 }}>{label}</div>
-                <div style={{ fontSize: 30, fontWeight: 700, color: glow ? color : '#f1f5f9', letterSpacing: '-0.02em', lineHeight: 1, filter: glow ? `drop-shadow(0 0 14px ${color}70)` : 'none' }}>{value}</div>
-                {sub && <div style={{ fontSize: 10, color: '#6B7280', marginTop: 8, lineHeight: 1.4 }}>{sub}</div>}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, minWidth: 0, position: 'relative', zIndex: 1 }}>
+            <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} className="group-hover:text-sky-400/80 transition-colors">{label}</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: glow ? color : '#f1f5f9', letterSpacing: '-0.02em', lineHeight: 1, filter: glow ? `drop-shadow(0 0 14px ${color}70)` : 'none', whiteSpace: 'nowrap' }} className="group-hover:scale-[1.02] origin-left transition-transform duration-300">{value}</div>
+                {sub && <div style={{ fontSize: 10, color: '#6B7280', marginTop: 8, lineHeight: 1.4 }} className="group-hover:text-gray-400 transition-colors">{sub}</div>}
             </div>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 0 12px rgba(56,189,248,0.1)' }}>
-                <Icon size={17} color="#38BDF8" />
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 0 12px rgba(56,189,248,0.1)' }} className="group-hover:bg-sky-500 group-hover:text-white transition-all duration-300 group-hover:shadow-[0_0_20px_rgba(56,189,248,0.4)]">
+                <Icon size={17} color="#38BDF8" className="group-hover:text-white transition-colors" />
             </div>
         </div>
     </CardShell>
@@ -128,11 +163,11 @@ const StatCardsRow = ({ batches }) => {
     const spark2 = mkSeries(24, parseFloat(avgPurity) || 97, 1.2);
     const spark3 = mkSeries(24, 12, 5);
     return (
-        <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
-            <StatCard label="Total Supply Volume" value={totalPackets > 0 ? `${totalPackets.toLocaleString()}` : '10,240'} sub="Seed packets tracked on-chain" color="#38BDF8" icon={Package2} spark={spark1} />
-            <StatCard label="Avg Purity Score" value={`${avgPurity}%`} sub="Gemini Vision · All batches" color="#34D399" icon={Award} spark={spark2} />
+        <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+            <StatCard label="Total Supply Volume" value={totalPackets > 0 ? `${totalPackets.toLocaleString()}` : '0'} sub="Seed packets tracked on-chain" color="#38BDF8" icon={Package2} spark={spark1} />
+            <StatCard label="Avg Purity Score" value={batches.length > 0 ? `${avgPurity}%` : '—'} sub="Gemini Vision · All batches" color="#34D399" icon={Award} spark={spark2} />
             <StatCard label="Counterfeit Scans" value="17" sub="Blocked by forensics engine" color="#FFB800" icon={ShieldAlert} glow spark={spark3} />
-            <StatCard label="Capital Protected" value={capitalProtected} sub="Estimated farmer loss prevented" color="#38BDF8" icon={TrendingUp} spark={spark1} />
+            <StatCard label="Capital Protected" value={batches.length > 0 ? capitalProtected : '₹0'} sub="Estimated farmer loss prevented" color="#38BDF8" icon={TrendingUp} spark={spark1} />
         </div>
     );
 };
@@ -167,8 +202,61 @@ const PieTip = ({ active, payload }) => {
 
 /* ════════════════════ CARD 1 — THREAT MAP + TERMINAL ════════════════ */
 const ThreatMapCard = ({ batches }) => {
-    const [logs, setLogs] = useState(LOG_POOL.slice(0, 7));
-    const idxRef = useRef(7);
+    const mapRef = useRef(null);
+
+    const exportPDF = async () => {
+        const element = document.getElementById('dashboard-export-area'); // Or whatever your main wrapper ID is
+        if (!element) return;
+
+        try {
+            // 1. Give the DOM a split second to finish any active animations
+            await new Promise((resolve) => setTimeout(resolve, 500));
+
+            // 2. The Sanitized Canvas Engine
+            const canvas = await html2canvas(element, {
+                scale: 2,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#020617', // Enforce solid background, avoid transparent glitches
+                onclone: (clonedDoc) => {
+                    // 🛑 KILL SWITCH 1: Destroy all Recharts background patterns
+                    const patterns = clonedDoc.querySelectorAll('pattern');
+                    patterns.forEach(pattern => pattern.remove());
+
+                    // 🛑 KILL SWITCH 2: Destroy any 0x0 hidden map canvases
+                    const canvases = clonedDoc.querySelectorAll('canvas');
+                    canvases.forEach(c => {
+                        if (c.width === 0 || c.height === 0 || c.style.display === 'none') {
+                            c.remove();
+                        }
+                    });
+
+                    // 🛑 KILL SWITCH 3: Force Recharts to absolute dimensions if needed
+                    const rechartsWrappers = clonedDoc.querySelectorAll('.recharts-responsive-container');
+                    rechartsWrappers.forEach(wrapper => {
+                        // Sometimes responsive containers collapse during clone
+                        wrapper.style.width = '100%';
+                        wrapper.style.height = '300px';
+                    });
+                }
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save('SeedSecure_CommandCenter_Report.pdf');
+
+        } catch (error) {
+            console.error("PDF Generation Failed:", error);
+            alert("PDF generation failed. Check the console for details.");
+        }
+    };
+
+    const [logs, setLogs] = useState(LOG_POOL.slice(0, 12));
+    const idxRef = useRef(12);
     const termRef = useRef(null);
     const [hot, setHot] = useState(null);
 
@@ -178,7 +266,7 @@ const ThreatMapCard = ({ batches }) => {
         const liveEntries = batches.slice(-3).map(b =>
             `[LIVE]  Batch ${b.batchID || b.id} · Status: ${b.status} · Purity: ${b.purityScore ? `${b.purityScore}%` : 'N/A'}`
         );
-        setLogs(prev => [...prev, ...liveEntries].slice(-14));
+        setLogs(prev => [...prev, ...liveEntries].slice(-24));
     }, [batches]);
 
     /* Auto-scroll synthetic forensics entries */
@@ -186,7 +274,7 @@ const ThreatMapCard = ({ batches }) => {
         const t = setInterval(() => {
             const next = LOG_POOL[idxRef.current % LOG_POOL.length];
             idxRef.current += 1;
-            setLogs(prev => [...prev.slice(-13), next]);
+            setLogs(prev => [...prev.slice(-23), next]);
         }, 2400);
         return () => clearInterval(t);
     }, []);
@@ -206,19 +294,11 @@ const ThreatMapCard = ({ batches }) => {
         .filter(h => h.latitude && h.longitude)
         .slice(-6);
 
-    /* Fallback static pins if no real coords yet */
-    const staticPins = [
-        { label: 'Prayagraj', x: 68, y: 32, c: '#ef4444', risk: 'CRITICAL' },
-        { label: 'Pune', x: 52, y: 60, c: '#f97316', risk: 'HIGH' },
-        { label: 'Jaipur', x: 44, y: 28, c: '#ef4444', risk: 'CRITICAL' },
-        { label: 'Bhopal', x: 61, y: 46, c: '#eab308', risk: 'MEDIUM' },
-    ];
-
     return (
-        <CardShell glow style={{ gridColumn: '1 / 3' }}>
+        <CardShell glow style={{ gridColumn: '1 / 3' }} innerRef={mapRef}>
             <div style={{ padding: '18px 20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} className="group-hover:rotate-12 transition-transform duration-500">
                         <Globe2 size={16} color="#38BDF8" />
                     </div>
                     <div>
@@ -228,7 +308,8 @@ const ThreatMapCard = ({ batches }) => {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <button
-                        onClick={() => window.print()}
+                        onClick={exportPDF}
+                        className="transition-all duration-200 ease-in-out hover:scale-[1.05] hover:shadow-lg hover:shadow-indigo-500/40 active:scale-95"
                         style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#f1f5f9', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', letterSpacing: '0.01em' }}
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
@@ -244,7 +325,7 @@ const ThreatMapCard = ({ batches }) => {
 
             <div style={{ display: 'grid', gridTemplateColumns: '60% 40%', gap: 14, padding: '14px 20px 20px' }}>
                 {/* ── Real CartoDB Dark Matter Map (iframe) ── */}
-                <div style={{ position: 'relative', height: 215, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div data-html2canvas-ignore="true" style={{ position: 'relative', height: 215, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }} className="transition-all duration-700 group-hover:border-sky-500/20">
                     {/* CartoDB Dark Matter approximation via heavy CSS filter on OSM tiles */}
                     <iframe
                         title="India Threat Map"
@@ -255,6 +336,7 @@ const ThreatMapCard = ({ batches }) => {
                         src="https://www.openstreetmap.org/export/embed.html?bbox=67.0%2C6.0%2C97.5%2C37.5&amp;layer=mapnik&amp;marker=20.5937%2C78.9629"
                         allowFullScreen
                         sandbox="allow-scripts allow-popups allow-same-origin"
+                        className="group-hover:scale-[1.03] transition-transform duration-1000"
                     />
                     {/* Dark overlay to force cyber aesthetic on OSM tiles */}
                     <div style={{ position: 'absolute', inset: 0, background: 'rgba(6,10,18,0.48)', pointerEvents: 'none', borderRadius: 12 }} />
@@ -265,42 +347,33 @@ const ThreatMapCard = ({ batches }) => {
                         backgroundSize: '40px 40px'
                     }} />
 
-                    {/* ── Threat pins — unified cyan #38BDF8 on fixed India bbox */}
-                    {[
+                    {/* ── Threat pins & Live GPS unified ── */}
+                    {(pins.length > 0 ? pins.map(p => ({
+                        label: p.location || `Batch ${p.batchID}`,
+                        lat: p.latitude,
+                        lng: p.longitude,
+                        risk: 'LIVE'
+                    })) : [
                         { label: 'Prayagraj', lat: 25.45, lng: 81.85, risk: 'CRITICAL' },
                         { label: 'Pune', lat: 18.52, lng: 73.86, risk: 'HIGH' },
                         { label: 'Jaipur', lat: 26.91, lng: 75.79, risk: 'CRITICAL' },
                         { label: 'Bhopal', lat: 23.26, lng: 77.40, risk: 'MEDIUM' },
-                    ].map((dot) => {
+                    ]).map((dot, i) => {
                         const p = toPct(dot.lat, dot.lng);
                         return (
-                            <div key={dot.label}
+                            <div key={dot.label + i}
                                 style={{ position: 'absolute', left: `${p.x}%`, top: `${p.y}%`, transform: 'translate(-50%,-50%)', cursor: 'pointer', zIndex: 10 }}
-                                onMouseEnter={() => setHot(dot.label)}
+                                onMouseEnter={() => setHot(dot.label + i)}
                                 onMouseLeave={() => setHot(null)}
                             >
                                 <div style={{ position: 'absolute', inset: -14, borderRadius: '50%', border: '1.5px solid #38BDF8', opacity: 0.5, animation: 'ss-db-ping 2s ease-out infinite' }} />
                                 <div style={{ position: 'absolute', inset: -22, borderRadius: '50%', border: '1px solid #38BDF8', opacity: 0.18, animation: 'ss-db-ping 2s ease-out 0.7s infinite' }} />
                                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#38BDF8', boxShadow: '0 0 14px #38BDF8, 0 0 4px #fff', border: '2px solid rgba(255,255,255,0.7)' }} />
-                                {hot === dot.label && (
+                                {hot === (dot.label + i) && (
                                     <div style={{ position: 'absolute', bottom: 18, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.92)', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 6, padding: '3px 9px', whiteSpace: 'nowrap', fontSize: 9, color: '#38BDF8', fontWeight: 700, zIndex: 20, boxShadow: '0 0 10px rgba(56,189,248,0.25)' }}>
                                         {dot.label} · {dot.risk}
                                     </div>
                                 )}
-                            </div>
-                        );
-                    })}
-
-                    {/* Firebase GPS pins (real coords from transitHistory) */}
-                    {pins.map((pin, i) => {
-                        const p = toPct(pin.latitude, pin.longitude);
-                        return (
-                            <div key={i} style={{ position: 'absolute', left: `${p.x}%`, top: `${p.y}%`, transform: 'translate(-50%,-50%)', zIndex: 10 }}>
-                                <div style={{ position: 'absolute', inset: -10, borderRadius: '50%', border: '1.5px solid #38BDF8', opacity: 0.5, animation: 'ss-db-ping 2s ease-out infinite' }} />
-                                <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#38BDF8', boxShadow: '0 0 12px #38BDF8, 0 0 4px white', border: '1.5px solid rgba(255,255,255,0.6)' }} />
-                                <div style={{ position: 'absolute', bottom: 13, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.88)', border: '1px solid #38BDF840', borderRadius: 4, padding: '2px 6px', fontSize: 8, color: '#38BDF8', whiteSpace: 'nowrap', zIndex: 20 }}>
-                                    {pin.batchID}
-                                </div>
                             </div>
                         );
                     })}
@@ -311,25 +384,75 @@ const ThreatMapCard = ({ batches }) => {
                     <div style={{ position: 'absolute', bottom: 6, left: 8, fontSize: 8, color: 'rgba(56,189,248,0.45)', fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.1em', pointerEvents: 'none', zIndex: 11 }}>INDIA · AGRICULTURAL THREAT ZONE</div>
                 </div>
                 {/* Terminal — bg-black/50 border-white/5 */}
-                <div style={{ background: 'rgba(0,0,0,0.5)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', overflow: 'hidden', height: 215 }}>
-                    <div style={{ padding: '7px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {['#ef4444', '#fbbf24', '#22c55e'].map(c => <div key={c} style={{ width: 8, height: 8, borderRadius: '50%', background: c }} />)}
-                        <span style={{ fontSize: 10, color: '#6B7280', marginLeft: 4, fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.08em' }}>FORENSICS LOG</span>
-                        <span style={{ marginLeft: 'auto', fontSize: 9, color: '#38BDF8', fontFamily: 'monospace', opacity: 0.7 }}>● LIVE</span>
+                <div 
+                    className="relative group/term transition-all duration-500 hover:border-blue-500/30"
+                    style={{ 
+                        background: 'rgba(0,0,0,0.6)', 
+                        borderRadius: 12, 
+                        border: '1px solid rgba(255,255,255,0.08)', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        overflow: 'hidden', 
+                        height: 420,
+                        boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)'
+                    }}
+                >
+                    {/* Animated scanning line */}
+                    <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: '2px',
+                        background: 'linear-gradient(90deg, transparent, #38BDF8, transparent)',
+                        opacity: 0.2,
+                        zIndex: 5,
+                        animation: 'ss-terminal-scan 4s linear infinite'
+                    }} />
+
+                    <div style={{ 
+                        padding: '8px 14px', 
+                        background: 'rgba(255,255,255,0.03)',
+                        borderBottom: '1px solid rgba(255,255,255,0.06)', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 8 
+                    }}>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                            {['#FF5F56', '#FFBD2E', '#27C93F'].map(c => (
+                                <div key={c} style={{ width: 9, height: 9, borderRadius: '50%', background: c, boxShadow: `0 0 6px ${c}40` }} />
+                            ))}
+                        </div>
+                        <span style={{ fontSize: 10, color: '#94A3B8', marginLeft: 8, fontFamily: 'monospace', fontWeight: 800, letterSpacing: '0.1em' }}>THREAT_COMMAND_v1.0.4</span>
+                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: '50%', background: '#38BDF8', boxShadow: '0 0 8px #38BDF8' }} />
+                            <span style={{ fontSize: 9, color: '#38BDF8', fontFamily: 'monospace', fontWeight: 700 }}>ACTIVE_UPLINK</span>
+                        </div>
                     </div>
-                    <div ref={termRef} style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', scrollbarWidth: 'none' }}>
+                    
+                    <div ref={termRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', scrollbarWidth: 'none' }}>
                         {logs.map((line, i) => {
                             const isLive = line.startsWith('[LIVE]') || line.startsWith('[INFO]') || line.startsWith('[DFRWS]') || line.startsWith('[SCAN]');
                             const isAlert = line.includes('[ALERT]') || line.includes('[BLOCK]') || line.includes('[WARN]');
                             const isCounterfeit = /counterfeit|mismatch|tampered|fake/i.test(line) || line.includes('Counterfeit Detected');
                             const color = isCounterfeit ? '#FFB800' : (isAlert ? '#F87171' : '#38BDF8');
                             return (
-                                <div key={i} style={{ fontFamily: 'monospace', fontSize: 9, lineHeight: 1.8, color, wordBreak: 'break-all', fontWeight: isCounterfeit ? 800 : 600 }}>
-                                    <span style={{ color: 'rgba(56,189,248,0.25)' }}>{'›'} </span>{line}
-                                </div>
+                                <TerminalLine key={i} line={line} color={color} />
                             );
                         })}
+                        {/* Blinking cursor */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                            <span style={{ color: '#38BDF8', fontSize: 10, fontFamily: 'monospace' }}>root@seedsecure:~#</span>
+                            <div className="animate-pulse" style={{ width: 6, height: 12, background: '#38BDF8' }} />
+                        </div>
                     </div>
+
+                    <style>{`
+                        @keyframes ss-terminal-scan {
+                            0% { transform: translateY(0); }
+                            100% { transform: translateY(420px); }
+                        }
+                    `}</style>
                 </div>
             </div>
         </CardShell>
@@ -476,7 +599,7 @@ const PurityChartCard = ({ batches }) => {
                                 <feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge>
                             </filter>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
+                        {/* <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" /> */}
                         <XAxis dataKey="batch" tick={{ fill: '#6B7280', fontSize: 10 }} axisLine={{ stroke: '#1F2937' }} tickLine={false} />
                         <YAxis domain={[80, 100]} tick={{ fill: '#6B7280', fontSize: 10 }} axisLine={{ stroke: '#1F2937' }} tickLine={false} tickFormatter={v => `${v}%`} />
                         <Tooltip content={<DarkTip />} />
@@ -597,6 +720,345 @@ const QACard = ({ batches, connected }) => {
     );
 };
 
+/* ════════════════════ ANALYTICS COMMAND CENTER ════════════════════ */
+const AnalyticsCommandCenter = ({ rawBatches = [] }) => {
+    const [filteredBatches, setFilteredBatches] = useState([]);
+    const [filters, setFilters] = useState({ status: 'ALL', seedType: 'ALL' });
+    const [aiInsight, setAiInsight] = useState('');
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+    const generateAIInsight = async () => {
+        setIsAnalyzing(true);
+        setAiInsight('');
+        try {
+            const insight = await generateSupplyChainInsight(filteredBatches);
+            setAiInsight(insight);
+        } catch (err) {
+            console.error('AI Insight failed:', err);
+            if (err?.message === 'DAILY_QUOTA_EXHAUSTED') {
+                setAiInsight('STATUS: WARNING\n1. Free-tier daily quota exhausted for this API key.\n2. Quota resets at midnight Pacific Time (GMT-8).\n3. Use a new API key or wait until tomorrow to resume.');
+            } else {
+                setAiInsight('Unable to generate insight at this time. Please check your API connection.');
+            }
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
+    useEffect(() => {
+        let result = rawBatches;
+
+        if (filters.status !== 'ALL') {
+            result = result.filter(batch => {
+                const dataStatus = String(batch.status || '').toLowerCase().trim();
+                const filterStatus = String(filters.status).toLowerCase().trim();
+
+                // "Fully Sold" catches both 'sold' and 'fully sold'
+                if (filterStatus === 'fully sold') {
+                    return dataStatus === 'fully sold' || dataStatus === 'sold';
+                }
+                // "At Retailer" catches both 'at retailer' and 'ready for sale'
+                if (filterStatus === 'at retailer') {
+                    return dataStatus === 'at retailer' || dataStatus === 'ready for sale';
+                }
+                // "Ready for Dispatch" catches both 'ready for dispatch' and 'manufactured'
+                if (filterStatus === 'ready for dispatch') {
+                    return dataStatus === 'ready for dispatch' || dataStatus === 'manufactured';
+                }
+
+                return dataStatus === filterStatus;
+            });
+        }
+
+        if (filters.seedType !== 'ALL') {
+            result = result.filter(b => (b.seedType || 'Unknown').toLowerCase() === filters.seedType.toLowerCase());
+        }
+
+        setFilteredBatches(result);
+    }, [rawBatches, filters]);
+
+    const uniqueSeedTypes = ['ALL', ...new Set(rawBatches.map(b => b.seedType || 'Unknown').filter(Boolean))];
+    const uniqueStatuses = ['ALL', 'Ready for Dispatch', 'In Transit', 'At Retailer', 'Fully Sold'];
+
+    // GroupING for BarChart (Volume by Seed Type)
+    const seedTypeCounts = filteredBatches.reduce((acc, batch) => {
+        const type = batch.seedType || 'Unknown';
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+    }, {});
+    const barData = Object.keys(seedTypeCounts).map(key => ({ name: key, count: seedTypeCounts[key] }));
+
+    // Grouping for DonutChart (Supply Chain Status)
+    const statusCounts = filteredBatches.reduce((acc, b) => {
+        const type = b.status || 'Unknown';
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+    }, {});
+    const pieData = Object.entries(statusCounts).map(([name, value]) => ({ name, value }));
+    const PIE_COLORS = ['#38BDF8', '#818CF8', '#34D399', '#A78BFA', '#F472B6', '#FBBF24', '#2DD4BF'];
+
+    const exportCSV = () => {
+        const labels = ['Batch ID', 'Parent Carton ID', 'Seed Type', 'Status', 'Purity Score (%)', 'Packets Total', 'Packets Sold', 'Created At'];
+
+        const rows = filteredBatches.map(b => [
+            // Column A: Batch ID
+            b.batchID ?? '',
+            // Column B: Parent Carton ID — handles both 'parentCartonID' and 'parentCarton' field names
+            b.parentCartonID ?? b.parentCarton ?? '',
+            // Column C: Seed Type
+            b.seedType ?? 'Unknown',
+            // Column D: Status
+            b.status ?? '',
+            // Column E: Purity Score
+            b.purityScore != null ? `${b.purityScore}%` : '',
+            // Column F: Packets Total
+            Array.isArray(b.childPacketIDs) ? b.childPacketIDs.length : '',
+            // Column G: Packets Sold
+            Array.isArray(b.soldChildPackets) ? b.soldChildPackets.length : '',
+            // Column H: Created At
+            b.createdAt?.seconds ? new Date(b.createdAt.seconds * 1000).toLocaleString('en-IN') : '',
+        ]);
+
+        const csv = [labels, ...rows]
+            .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+            .join('\n');
+
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM prefix ensures Excel UTF-8 decode
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'SeedSecure_SupplyChain_Report.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    return (
+        <CardShell glow style={{ gridColumn: '1 / -1', marginTop: 16 }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+                    <div>
+                        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Activity size={20} color="#10B981" /> Analytics Command Center
+                        </h2>
+                        <p style={{ margin: '4px 0 0', fontSize: 12, color: '#8B949E' }}>Zero-latency filtering and real-time report generation</p>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.3)', padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <Filter size={14} color="#6B7280" />
+                            <select
+                                value={filters.status}
+                                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                                style={{ background: 'transparent', border: 'none', color: '#f1f5f9', fontSize: 13, outline: 'none', cursor: 'pointer' }}
+                            >
+                                {uniqueStatuses.map(s => <option key={s} value={s} style={{ background: '#0B0E14' }}>{s === 'ALL' ? 'Status: All' : s}</option>)}
+                            </select>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.3)', padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <Filter size={14} color="#6B7280" />
+                            <select
+                                value={filters.seedType}
+                                onChange={(e) => setFilters(prev => ({ ...prev, seedType: e.target.value }))}
+                                style={{ background: 'transparent', border: 'none', color: '#f1f5f9', fontSize: 13, outline: 'none', cursor: 'pointer' }}
+                            >
+                                {uniqueSeedTypes.map(s => <option key={s} value={s} style={{ background: '#0B0E14' }}>{s === 'ALL' ? 'Seed Type: All' : s}</option>)}
+                            </select>
+                        </div>
+
+                        <button
+                            onClick={exportCSV}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#2563eb', color: '#fff', padding: '8px 16px', borderRadius: 8, fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', transition: 'background 0.2s, transform 0.2s', boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)' }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#1d4ed8'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                        >
+                            <Download size={16} /> Export Filtered Report
+                        </button>
+
+                        <button
+                            onClick={generateAIInsight}
+                            disabled={isAnalyzing || filteredBatches.length === 0}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, background: isAnalyzing ? 'rgba(109,40,217,0.5)' : 'linear-gradient(135deg, #7c3aed, #4f46e5)', color: '#fff', padding: '8px 16px', borderRadius: 8, fontWeight: 700, fontSize: 13, border: '1px solid rgba(167,139,250,0.35)', cursor: isAnalyzing || filteredBatches.length === 0 ? 'not-allowed' : 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 14px rgba(124,58,237,0.4)', opacity: filteredBatches.length === 0 ? 0.5 : 1 }}
+                            onMouseEnter={e => { if (!isAnalyzing && filteredBatches.length > 0) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(124,58,237,0.6)'; } }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(124,58,237,0.4)'; }}
+                        >
+                            <Sparkles size={16} /> {isAnalyzing ? 'AI is Analyzing...' : 'Ask Gemini AI'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Gemini AI Analyst Modal Popup ── */}
+            {aiInsight && (() => {
+                const lines = aiInsight.split('\n').map(l => l.trim()).filter(Boolean);
+                const statusLine = lines.find(l => l.toLowerCase().startsWith('status:')) || '';
+                const statusWord = statusLine.replace(/status:/i, '').trim().toUpperCase();
+                const isHealthy = statusWord === 'HEALTHY';
+                const isCritical = statusWord === 'CRITICAL';
+                const statusColor = isHealthy ? '#10B981' : isCritical ? '#EF4444' : '#F59E0B';
+                const bullets = lines.filter(l => /^[123]\./.test(l));
+                return (
+                    /* Backdrop */
+                    <div
+                        onClick={() => setAiInsight('')}
+                        style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+                    >
+                        {/* Modal panel — stop click propagation so clicking inside doesn't close */}
+                        <div
+                            onClick={e => e.stopPropagation()}
+                            style={{ width: '100%', maxWidth: 520, background: 'linear-gradient(160deg, #1a0e2e 0%, #0d0d1f 100%)', border: '1px solid rgba(167,139,250,0.4)', borderRadius: 20, boxShadow: '0 0 60px rgba(124,58,237,0.35), 0 0 0 1px rgba(167,139,250,0.1)', overflow: 'hidden' }}
+                        >
+                            {/* Modal header */}
+                            <div style={{ padding: '18px 24px', borderBottom: '1px solid rgba(167,139,250,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(109,40,217,0.12)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Sparkles size={18} style={{ color: '#a78bfa' }} />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Gemini AI Analyst</div>
+                                        <div style={{ fontSize: 11, color: '#8B949E', marginTop: 1 }}>Supply Chain Executive Summary</div>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    {/* Status pill */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: `${statusColor}15`, border: `1px solid ${statusColor}45`, borderRadius: 20, padding: '5px 12px' }}>
+                                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, display: 'inline-block', boxShadow: `0 0 10px ${statusColor}` }} />
+                                        <span style={{ fontSize: 12, fontWeight: 800, color: statusColor, letterSpacing: '0.05em' }}>{statusWord || 'ANALYZING'}</span>
+                                    </div>
+                                    <button onClick={() => setAiInsight('')} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#9ca3af', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Close">×</button>
+                                </div>
+                            </div>
+
+                            {/* Modal body */}
+                            <div style={{ padding: '24px' }}>
+                                {bullets.length > 0 ? (
+                                    <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                        {bullets.map((b, i) => (
+                                            <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                                                <span style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.35)', color: '#a78bfa', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
+                                                <span style={{ fontSize: 14, color: '#e2e8f0', lineHeight: 1.6, paddingTop: 4 }}>{b.replace(/^[123]\.\.?/, '').trim()}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p style={{ margin: 0, fontSize: 14, color: '#e2e8f0', lineHeight: 1.7 }}>{aiInsight}</p>
+                                )}
+                            </div>
+
+                            {/* Modal footer */}
+                            <div style={{ padding: '12px 24px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: 11, color: '#6B7280' }}>Based on {filteredBatches.length} filtered batch{filteredBatches.length !== 1 ? 'es' : ''}</span>
+                                <button onClick={() => setAiInsight('')} style={{ padding: '7px 18px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.1)', color: '#a78bfa', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Dismiss</button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* ── Live KPI mini-cards ── */}
+            {(() => {
+                const totalBatches = filteredBatches.length;
+                const totalPackets = filteredBatches.reduce((a, b) => a + (Array.isArray(b.childPacketIDs) ? b.childPacketIDs.length : 0), 0);
+                const avgPurityNum = totalBatches > 0
+                    ? filteredBatches.reduce((a, b) => a + (Number(b.purityScore) || 0), 0) / totalBatches
+                    : null;
+                const avgPurity = avgPurityNum !== null ? avgPurityNum.toFixed(1) : null;
+                const purityColor = avgPurityNum === null ? '#34D399' : avgPurityNum >= 95 ? '#34D399' : avgPurityNum >= 85 ? '#FBBF24' : '#EF4444';
+                const soldPackets = filteredBatches.reduce((a, b) => a + (Array.isArray(b.soldChildPackets) ? b.soldChildPackets.length : 0), 0);
+                const capitalProtected = totalBatches > 0 ? `₹${(totalBatches * 2500).toLocaleString('en-IN')}` : '₹0';
+                const kpis = [
+                    { label: 'Filtered Batches', value: totalBatches, color: '#38BDF8', sub: 'matching current filter' },
+                    { label: 'Total Packets', value: totalPackets.toLocaleString(), color: '#818CF8', sub: 'across filtered batches' },
+                    { label: 'Avg Purity Score', value: avgPurity ? `${avgPurity}%` : '—', color: purityColor, sub: avgPurityNum !== null && avgPurityNum < 95 ? '⚠ Below threshold' : 'Gemini AI verified' },
+                    { label: 'Packets Sold', value: soldPackets.toLocaleString(), color: '#F472B6', sub: 'farmer-scanned' },
+                    { label: 'Capital Protected', value: capitalProtected, color: '#FBBF24', sub: 'est. farmer loss prevented' },
+                ];
+                return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                        {kpis.map(kpi => (
+                            <div key={kpi.label} style={{ background: `${kpi.color}0D`, border: `1px solid ${kpi.color}22`, borderRadius: 10, padding: '12px 14px' }}>
+                                <div style={{ fontSize: 10, color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>{kpi.label}</div>
+                                <div style={{ fontSize: 20, fontWeight: 800, color: kpi.color, lineHeight: 1, marginBottom: 3 }}>{kpi.value}</div>
+                                <div style={{ fontSize: 10, color: kpi.sub.startsWith('⚠') ? '#F59E0B' : '#6B7280' }}>{kpi.sub}</div>
+                            </div>
+                        ))}
+                    </div>
+                );
+            })()}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24, padding: '24px' }}>
+                <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12, padding: 16 }}>
+                    <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 600, color: '#f1f5f9', textAlign: 'center' }}>Volume by Seed Type</h3>
+                    <ResponsiveContainer width="100%" height={240}>
+                        <BarChart data={barData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
+                            <XAxis dataKey="name" tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={{ stroke: '#1F2937' }} tickLine={false} />
+                            <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={{ stroke: '#1F2937' }} tickLine={false} allowDecimals={false} />
+                            <Tooltip content={<DarkTip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                            <Bar dataKey="count" name="Batches" fill="#10B981" radius={[4, 4, 0, 0]} animationDuration={500} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+
+                <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12, padding: 16 }}>
+                    <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 600, color: '#f1f5f9', textAlign: 'center' }}>Supply Chain Bottlenecks</h3>
+                    <ResponsiveContainer width="100%" height={240}>
+                        <PieChart>
+                            <Pie
+                                data={pieData}
+                                cx="50%" cy="50%"
+                                innerRadius={60} outerRadius={85}
+                                paddingAngle={5}
+                                dataKey="value"
+                                animationDuration={500}
+                                stroke="none"
+                            >
+                                {pieData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                                ))}
+                            </Pie>
+                            <Tooltip content={<PieTip />} />
+                            <Legend iconType="circle" iconSize={8} formatter={v => <span style={{ fontSize: 11, color: '#9ca3af' }}>{v}</span>} />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            <div style={{ padding: '0 24px 24px', overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                        <tr style={{ background: 'rgba(24,24,27,0.6)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                            <th style={{ textAlign: 'left', padding: '12px 16px', color: '#8B949E', fontWeight: 600 }}>Batch ID</th>
+                            <th style={{ textAlign: 'left', padding: '12px 16px', color: '#8B949E', fontWeight: 600 }}>Seed Type</th>
+                            <th style={{ textAlign: 'left', padding: '12px 16px', color: '#8B949E', fontWeight: 600 }}>Status</th>
+                            <th style={{ textAlign: 'left', padding: '12px 16px', color: '#8B949E', fontWeight: 600 }}>Purity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filteredBatches.length > 0 ? filteredBatches.slice(0, 10).map((batch, idx) => (
+                            <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <td style={{ padding: '12px 16px', color: '#38BDF8', fontWeight: 600 }}>{batch.batchID}</td>
+                                <td style={{ padding: '12px 16px', color: '#e2e8f0' }}>{batch.seedType || 'Unknown'}</td>
+                                <td style={{ padding: '12px 16px' }}>
+                                    <span style={{ background: 'rgba(56,189,248,0.1)', color: '#38BDF8', padding: '4px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
+                                        {batch.status}
+                                    </span>
+                                </td>
+                                <td style={{ padding: '12px 16px', color: batch.purityScore > 95 ? '#10B981' : '#F59E0B', fontWeight: 700 }}>
+                                    {batch.purityScore ? `${batch.purityScore}%` : 'N/A'}
+                                </td>
+                            </tr>
+                        )) : (
+                            <tr><td colSpan="4" style={{ textAlign: 'center', padding: 24, color: '#6B7280' }}>No matching records</td></tr>
+                        )}
+                    </tbody>
+                </table>
+                {filteredBatches.length > 10 && <div style={{ textAlign: 'center', marginTop: 12, fontSize: 12, color: '#9ca3af' }}>Showing top 10 rows. Export CSV to see all {filteredBatches.length} records.</div>}
+            </div>
+        </CardShell>
+    );
+};
+
 /* ════════════════════ DASHBOARD ════════════════════════════════════ */
 const Dashboard = ({ batches = [], fetching = false }) => {
     // Determine connection state via `fetching`
@@ -616,8 +1078,8 @@ const Dashboard = ({ batches = [], fetching = false }) => {
       `}</style>
 
             {/* Master bg: #050505 to match Analysis/Retailer environment */}
-            <div style={{ background: '#050505', borderRadius: 16, padding: 4 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 22, alignItems: 'start' }}>
+            <div id="dashboard-export-area" style={{ background: '#050505', borderRadius: 16, padding: 4, width: '100%' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 22, alignItems: 'start', minWidth: 0, width: '100%' }}>
 
                     {/* ROW 1 — Executive Stat Cards (spans all 3 cols) */}
                     <StatCardsRow batches={batches} />
@@ -630,6 +1092,8 @@ const Dashboard = ({ batches = [], fetching = false }) => {
                     <PurityChartCard batches={batches} />
                     <QACard batches={batches} connected={connected} />
 
+                    {/* ROW 4 — Analytics Command Center */}
+                    <AnalyticsCommandCenter rawBatches={batches} />
                 </div>
             </div>
         </>

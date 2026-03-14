@@ -33,6 +33,7 @@ import QRModal from './components/QRModal';
 import BatchDetailsModal from './components/BatchDetailsModal';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
+import PartnerManagement from './components/PartnerManagement';
 import EmergencySyncButton from './components/EmergencySyncButton';
 import useAutoSync from './hooks/useAutoSync';
 
@@ -161,12 +162,14 @@ const App = () => {
         b.status === 'In Transit'
       ));
 
-      // 3. At Retailer Tab
+      // 3. At Retailer Tab (Filtered to only show batches with at least 1 sale)
       setRetailerBatches(allBatches.filter(b => {
         const isAtRetailer = b.status === 'At Retailer' || b.status === 'Ready for Sale';
+        const hasSoldPackets = Array.isArray(b.soldChildPackets) && b.soldChildPackets.length > 0;
         const isFullySold = b.status === 'Fully Sold' ||
           (b.childPacketIDs && (b.soldChildPackets?.length || 0) === b.childPacketIDs.length && b.childPacketIDs.length > 0);
-        return isAtRetailer && !isFullySold;
+        
+        return isAtRetailer && hasSoldPackets && !isFullySold;
       }));
 
       // 4. History Tab
@@ -227,7 +230,11 @@ const App = () => {
     setError(null);
     setTxHash(null);
     try {
-      const analysis = await analyzeSeedQuality(imageFile);
+      // Extract known seed categories from existing blockchain batches for Dynamic Memory Prompting
+      const allBatches = [...logisticsBatches, ...inTransitBatches, ...retailerBatches, ...historyBatches];
+      const knownSeeds = [...new Set(allBatches.map(b => b.seedType).filter(Boolean))];
+
+      const analysis = await analyzeSeedQuality(imageFile, knownSeeds);
       setResult(analysis);
       setSeedType(analysis.seedType || 'Unknown');
       if (analysis.status === 'Approved') {
@@ -462,10 +469,12 @@ const App = () => {
           }}
         />
 
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} expanded={sidebarExpanded} setExpanded={setSidebarExpanded} />
+        <div className="print:hidden">
+          <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} expanded={sidebarExpanded} setExpanded={setSidebarExpanded} />
+        </div>
 
         <div
-          className="p-4 md:p-8 transition-all duration-300"
+          className="print:hidden"
           style={{
             marginLeft: sidebarExpanded ? 260 : 80,
             width: `calc(100vw - ${sidebarExpanded ? 260 : 80}px)`,
@@ -473,14 +482,17 @@ const App = () => {
             overflowY: 'auto',
             overflowX: 'hidden',
             minWidth: 0,
+            padding: '16px 32px',
+            transition: 'all 320ms cubic-bezier(0.4, 0, 0.2, 1)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', color: 'var(--neon-text-muted)', textTransform: 'uppercase' }}>Manufacturer Portal</div>
             <EmergencySyncButton />
           </div>
-          <main className="w-full bg-transparent relative">
-            {activeTab === 'dashboard' && <Dashboard />}
+          <main className="w-full bg-transparent relative flex flex-col">
+            {activeTab === 'dashboard' && <Dashboard batches={[...logisticsBatches, ...inTransitBatches, ...retailerBatches, ...historyBatches]} fetching={fetchingBatches} />}
+            {activeTab === 'network' && <PartnerManagement />}
             {activeTab === 'analysis' && (
               <>
                 <div className="neon-glass-card" style={{ padding: 28, marginBottom: 24, background: 'transparent' }}>
