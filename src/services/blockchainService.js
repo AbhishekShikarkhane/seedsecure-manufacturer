@@ -173,6 +173,44 @@ const CONTRACT_ADDRESS = import.meta.env.VITE_SEED_SECURE_ADDRESS;
 // Debug: print contract address so it can be cross-referenced with the latest deployment
 console.log('Contract Address Active:', CONTRACT_ADDRESS);
 
+const ensureAmoyNetwork = async () => {
+  if (!window.ethereum) return;
+
+  const amoyChainIdHex = '0x13882'; // 80002 in hexadecimal
+
+  try {
+    // Attempt to switch the network seamlessly
+    await window.ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: amoyChainIdHex }],
+    });
+  } catch (switchError) {
+    // If the error code is 4902, the user doesn't have Amoy installed. 
+    // This will automatically add it to their MetaMask.
+    if (switchError.code === 4902) {
+      try {
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [
+            {
+              chainId: amoyChainIdHex,
+              chainName: 'Polygon Amoy Testnet',
+              nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
+              rpcUrls: ['https://rpc-amoy.polygon.technology/'], 
+              blockExplorerUrls: ['https://amoy.polygonscan.com/'],
+            },
+          ],
+        });
+      } catch (addError) {
+        console.error('Failed to add the Amoy network', addError);
+        throw new Error('Please add Polygon Amoy Testnet manually.');
+      }
+    } else {
+      throw new Error('Please switch to Polygon Amoy Testnet.');
+    }
+  }
+};
+
 /**
  * Connects to the SeedSecure contract and creates a new batch.
  * @param {Object} batchData
@@ -191,6 +229,9 @@ export async function createBatchOnChain(batchData) {
   }
 
   try {
+    // 1. Force network synchronization first
+    await ensureAmoyNetwork();
+
     // Request account access
     await window.ethereum.request({ method: 'eth_requestAccounts' });
 
@@ -199,7 +240,7 @@ export async function createBatchOnChain(batchData) {
 
     const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 
-    // 1. Check Network: Ensure user is on Polygon Amoy (80002)
+    // 2. Check Network: Ensure user is on Polygon Amoy (80002)
     const network = await provider.getNetwork();
     if (network.chainId !== 80002n) {
       const msg = "Please switch your MetaMask network to Polygon Amoy Testnet (Chain ID 80002).";
@@ -207,7 +248,7 @@ export async function createBatchOnChain(batchData) {
       throw new Error(msg);
     }
 
-    // 2. Check Contract Code: Ensure address is a contract and not an EOA or empty
+    // 3. Check Contract Code: Ensure address is a contract and not an EOA or empty
     const code = await provider.getCode(CONTRACT_ADDRESS);
     if (code === "0x") {
       const msg = `Contract not found at ${CONTRACT_ADDRESS}. Check if the address is correct for the Amoy Testnet.`;
