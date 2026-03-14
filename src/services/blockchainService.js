@@ -199,8 +199,32 @@ export async function createBatchOnChain(batchData) {
 
     const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 
+    // 1. Check Network: Ensure user is on Polygon Amoy (80002)
+    const network = await provider.getNetwork();
+    if (network.chainId !== 80002n) {
+      const msg = "Please switch your MetaMask network to Polygon Amoy Testnet (Chain ID 80002).";
+      alert(msg);
+      throw new Error(msg);
+    }
+
+    // 2. Check Contract Code: Ensure address is a contract and not an EOA or empty
+    const code = await provider.getCode(CONTRACT_ADDRESS);
+    if (code === "0x") {
+      const msg = `Contract not found at ${CONTRACT_ADDRESS}. Check if the address is correct for the Amoy Testnet.`;
+      console.error(msg);
+      alert(msg);
+      throw new Error(msg);
+    }
+
     // Dynamic Authorization Check: Ensure the current MetaMask account is the manufacturer
-    const manufacturer = await contract.manufacturer();
+    let manufacturer;
+    try {
+      manufacturer = await contract.manufacturer();
+    } catch (decodeErr) {
+      console.error("ABI Decoding Error:", decodeErr);
+      throw new Error("Failed to communicate with contract. The ABI might not match the deployed contract or you are on the wrong network.");
+    }
+    
     const currentAccount = await signer.getAddress();
     
     if (currentAccount.toLowerCase() !== manufacturer.toLowerCase()) {
@@ -227,7 +251,10 @@ export async function createBatchOnChain(batchData) {
 
     return receipt;
   } catch (error) {
-    console.error("Blockchain Error:", error);
+    console.error("Blockchain Error Diagnostics:");
+    console.error("- Message:", error.message);
+    console.error("- Contract:", CONTRACT_ADDRESS);
+    console.error("- Chain ID Check: Expected 80002");
     throw error;
   }
 }
