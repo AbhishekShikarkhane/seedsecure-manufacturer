@@ -240,15 +240,7 @@ export async function createBatchOnChain(batchData) {
 
     const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 
-    // 2. Check Network: Ensure user is on Polygon Amoy (80002)
-    const network = await provider.getNetwork();
-    if (network.chainId !== 80002n) {
-      const msg = "Please switch your MetaMask network to Polygon Amoy Testnet (Chain ID 80002).";
-      alert(msg);
-      throw new Error(msg);
-    }
-
-    // 3. Check Contract Code: Ensure address is a contract and not an EOA or empty
+    // 2. Check Contract Code: Ensure address is a contract and not an EOA or empty
     const code = await provider.getCode(CONTRACT_ADDRESS);
     if (code === "0x") {
       const msg = `Contract not found at ${CONTRACT_ADDRESS}. Check if the address is correct for the Amoy Testnet.`;
