@@ -46,6 +46,10 @@ const NEON = {
   cyan: '#00f0ff',
 };
 
+// 🚀 SEEDSECURE PRODUCTION GENESIS CUTOFF
+// Any batch created before this timestamp is hidden from the UI.
+const GENESIS_CUTOFF = 1773505000; 
+
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
@@ -146,10 +150,13 @@ const App = () => {
         // Method A: The Structure Check
         const isValidStructure = b && b.parentCartonID && Array.isArray(b.childPacketIDs) && b.childPacketIDs.length > 0;
 
-        // Method C: The Hardcoded Blacklist
+        // Method B: The Genesis Firewall (Hide all legacy test data)
+        const isPostGenesis = Number(b.batchID) >= GENESIS_CUTOFF;
+
+        // Method C: The Hardcoded Blacklist (Extra safety)
         const isNotBlacklisted = !blacklist.includes(b.id?.toString());
 
-        return isValidStructure && isNotBlacklisted;
+        return isValidStructure && isPostGenesis && isNotBlacklisted;
       });
 
       // 1. Logistics & Dispatch Tab
@@ -162,14 +169,13 @@ const App = () => {
         b.status === 'In Transit'
       ));
 
-      // 3. At Retailer Tab (Filtered to only show batches with at least 1 sale)
+      // 3. At Retailer Tab (REMOVED flawed '0 sold' filter to allow new batches to flow)
       setRetailerBatches(allBatches.filter(b => {
         const isAtRetailer = b.status === 'At Retailer' || b.status === 'Ready for Sale';
-        const hasSoldPackets = Array.isArray(b.soldChildPackets) && b.soldChildPackets.length > 0;
         const isFullySold = b.status === 'Fully Sold' ||
           (b.childPacketIDs && (b.soldChildPackets?.length || 0) === b.childPacketIDs.length && b.childPacketIDs.length > 0);
         
-        return isAtRetailer && hasSoldPackets && !isFullySold;
+        return isAtRetailer && !isFullySold;
       }));
 
       // 4. History Tab
