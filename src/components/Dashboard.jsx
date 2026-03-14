@@ -363,6 +363,7 @@ const ThreatMapCard = ({ batches }) => {
 
                     {/* ── Threat pins & Live GPS unified ── */}
                     {pins.length > 0 ? pins.map((dot, i) => {
+                        const p = toPct(dot.latitude, dot.longitude);
                         return (
                             <div key={dot.location + i}
                                 style={{ position: 'absolute', left: `${p.x}%`, top: `${p.y}%`, transform: 'translate(-50%,-50%)', cursor: 'pointer', zIndex: 10 }}
