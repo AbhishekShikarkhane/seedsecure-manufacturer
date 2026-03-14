@@ -990,12 +990,12 @@ const AnalyticsCommandCenter = ({ rawBatches = [] }) => {
                 <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12, padding: 16 }}>
                     <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 600, color: '#f1f5f9', textAlign: 'center' }}>Volume by Seed Type</h3>
                     <ResponsiveContainer width="100%" height={240}>
-                        <BarChart data={barData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                        <BarChart data={finalBarData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
                             <XAxis dataKey="name" tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={{ stroke: '#1F2937' }} tickLine={false} />
                             <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={{ stroke: '#1F2937' }} tickLine={false} allowDecimals={false} />
                             <Tooltip content={<DarkTip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
-                            <Bar dataKey="count" name="Batches" fill="#10B981" radius={[4, 4, 0, 0]} animationDuration={500} />
+                            <Bar dataKey="volume" name="Volume" fill="#10B981" radius={[4, 4, 0, 0]} animationDuration={500} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
