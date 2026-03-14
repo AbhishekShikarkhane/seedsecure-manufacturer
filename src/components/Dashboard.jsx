@@ -155,18 +155,27 @@ const StatCardsRow = ({ batches }) => {
     const avgPurity = batches.length > 0
         ? (batches.reduce((a, b) => a + (b.purityScore || 0), 0) / batches.length).toFixed(1)
         : '97.9';
+    
+    // Real-time Counterfeit / Blocked Scans Calculation (Dynamic)
+    const counterfeitCount = batches.filter(batch => {
+        const purityValue = Number(batch.purityScore || batch.purity || 0);
+        return batch.status === 'Rejected' || (purityValue > 0 && purityValue < 85);
+    }).length;
+
     const capitalProtected = batches.length > 0
         ? `₹${(batches.length * 2500).toLocaleString()}`
         : '₹42,500';
+
     const mkSeries = (n, base, spread) => Array.from({ length: n }, (_, i) => ({ t: i, v: Math.max(0, base + (Math.sin(i / 2) * spread) + (Math.random() - 0.5) * spread) }));
     const spark1 = mkSeries(24, Math.max(5, (totalPackets || 1000) / 200), 3);
     const spark2 = mkSeries(24, parseFloat(avgPurity) || 97, 1.2);
-    const spark3 = mkSeries(24, 12, 5);
+    const spark3 = mkSeries(24, Math.max(2, counterfeitCount * 1.5), 4);
+
     return (
         <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
             <StatCard label="Total Supply Volume" value={totalPackets > 0 ? `${totalPackets.toLocaleString()}` : '0'} sub="Seed packets tracked on-chain" color="#38BDF8" icon={Package2} spark={spark1} />
             <StatCard label="Avg Purity Score" value={batches.length > 0 ? `${avgPurity}%` : '—'} sub="Gemini Vision · All batches" color="#34D399" icon={Award} spark={spark2} />
-            <StatCard label="Counterfeit Scans" value="17" sub="Blocked by forensics engine" color="#FFB800" icon={ShieldAlert} glow spark={spark3} />
+            <StatCard label="Counterfeit Scans" value={counterfeitCount} sub="Blocked by forensics engine" color="#FFB800" icon={ShieldAlert} glow spark={spark3} />
             <StatCard label="Capital Protected" value={batches.length > 0 ? capitalProtected : '₹0'} sub="Estimated farmer loss prevented" color="#38BDF8" icon={TrendingUp} spark={spark1} />
         </div>
     );
