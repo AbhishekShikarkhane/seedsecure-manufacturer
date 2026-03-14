@@ -151,12 +151,16 @@ const App = () => {
         const isValidStructure = b && b.parentCartonID && Array.isArray(b.childPacketIDs) && b.childPacketIDs.length > 0;
 
         // Method B: The Genesis Firewall (Hide all legacy test data)
-        const isPostGenesis = Number(b.batchID) >= GENESIS_CUTOFF;
+        const numericId = Number(b.batchID || b.id);
+        const isPostGenesis = numericId >= GENESIS_CUTOFF;
 
-        // Method C: The Hardcoded Blacklist (Extra safety)
-        const isNotBlacklisted = !blacklist.includes(b.id?.toString());
+        // Surgical Strike: Block the specific futuristic corrupted batch (2037 anomaly)
+        const isNotCorrupted = numericId !== 2122373985;
 
-        return isValidStructure && isPostGenesis && isNotBlacklisted;
+        // Method C: The Hardcoded Blacklist (Extra safety for other legacy IDs)
+        const isNotBlacklisted = !blacklist.includes(b.id?.toString()) && !blacklist.includes(b.batchID?.toString());
+
+        return isValidStructure && isPostGenesis && isNotCorrupted && isNotBlacklisted;
       });
 
       // 1. Logistics & Dispatch Tab
