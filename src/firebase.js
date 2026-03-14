@@ -11,5 +11,12 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
+// Debug: Verify Firebase config is loaded correctly
+if (!firebaseConfig.projectId) {
+  console.error("[Firebase] Project ID missing. Check your .env file!");
+} else {
+  console.log("[Firebase] Initializing with Project ID:", firebaseConfig.projectId);
+}
+
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
